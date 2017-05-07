@@ -1,0 +1,448 @@
+
+<html>
+<head>
+<title>3D Viewer</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script src="libs/jquery-3.2.1.min.js"></script>
+<script src="libs/math.js"></script>
+<script src="libs/glmatrixmin_2.3.2.js"></script>
+<script src="libs/webgl-utils.js"></script>
+<script src="viewer3dInput.js"></script>
+<script src="shaderutil.js"></script>
+
+<!--TODO: move shaders to files once the page goes live-->
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+
+    varying vec4 vColor;
+
+    void main(void) {
+        gl_FragColor = vColor;
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec4 aVertexColor;
+
+    uniform mat4 uMVMatrix;
+	uniform mat4 uCIMatrix;
+    uniform mat4 uPMatrix;
+
+    varying vec4 vColor;
+
+    void main(void) {
+        gl_Position = uPMatrix * uCIMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        vColor = aVertexColor;
+    }
+</script>
+
+<script type="text/javascript">
+
+    var gl;
+
+	function initMath() {
+	
+		//Prevent math.js from outputting complex numbers. NaN is returned in this case instead, which we use to detect invalid x or y range.
+		math.config({predictable : true});
+	}
+	
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+			return false;
+        }
+		return true;
+    }
+	var mvMatrixStack = [];
+	var mvMatrix = mat4.create();
+    var ciMatrix = mat4.create();
+    var pMatrix = mat4.create();
+	var yTheta = 0;
+	var thetaStep = Math.PI / 12;
+	var zOffset = -10;
+	var zOffsetStep = -1;
+	var yCameraOffset = 0.0;
+	var yCameraOffsetStep = 0.1;
+	var hfov = Math.PI / 4;
+	var hfovStep = Math.PI / 180;
+	
+	function initInput() {
+		document.onkeydown = function(event) {
+			//left arrow key
+			if (event.keyCode == 37) {
+				yTheta += thetaStep;	
+			}
+			//Right arrow key
+			else if(event.keyCode == 39) {
+				yTheta -= thetaStep;
+			}
+			//Up arrow key
+			else if (event.keyCode == 38) {
+				zOffset -= zOffsetStep;
+			}
+			//Down arrow key
+			else if (event.keyCode == 40) {
+				zOffset += zOffsetStep;
+			}
+			//t
+			else if (event.keyCode == 84) {
+				yCameraOffset += yCameraOffsetStep;
+			}
+			//g
+			else if (event.keyCode == 71) {
+				yCameraOffset -= yCameraOffsetStep;
+			}
+			//z
+			else if (event.keyCode == 90) {
+				hfov += hfovStep;
+				if (hfov > Math.PI / 2) {
+					hfov = Math.PI / 2;
+				}
+			}
+			//x
+			else if (event.keyCode == 88) {
+				hfov -= hfovStep;
+				if (hfov < 0) {
+					hfov = 0;
+				}
+			}
+			yTheta %= 2 * Math.PI;
+		}
+	}
+
+    var shaderProgram;
+	var shaderutil = new ShaderUtil();
+	
+    function initShaders() {
+        var fragmentShader = shaderutil.getShader(gl, "shader-fs");
+        var vertexShader = shaderutil.getShader(gl, "shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+        shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+        gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+		shaderProgram.ciMatrixUniform = gl.getUniformLocation(shaderProgram, "uCIMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    }
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+		gl.uniformMatrix4fv(shaderProgram.ciMatrixUniform, false, ciMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+    }
+
+	var functionVertexBuffer;
+	var functionIndexBuffer;
+	var functionColorBuffer;
+	var functionActive = false;
+	
+	function generateBufferFromExpression() {
+		var exprString = $("#functionInput")[0].value;
+		var exp;
+		var f;
+		
+		try {
+			f = math.parse(exprString);
+		}
+		catch (e) {
+			alert(e);
+			return;
+		}
+		
+		xMin = -5;
+		xMax = 5;
+		zMin = -5;
+		zMax = 5;
+		var xStep = 0.25;
+		var zStep = 0.25;
+		var minValue = Infinity;
+		var maxValue = -Infinity;
+		var vertices = [];
+		var color = [];
+		var indices = [];
+		var tempOutput;
+		
+		try {
+		
+			//Build vertices for each point in grid
+			for (var z = zMin; z <= zMax; z += zStep) {
+				for (x = xMin; x <= xMax; x += xStep) {
+					tempOutput = f.eval({x : x, y : z});
+					if (isNaN(tempOutput)) {
+						alert("Invalid x or y range. Please enter a different range.");
+						return;
+					}
+					
+					//Store min / max values for height coloring
+					if (tempOutput < minValue) {
+						minValue = tempOutput;
+					}
+					if (tempOutput > maxValue) {
+						maxValue = tempOutput;
+					}
+					
+					vertices.push(x, tempOutput, z);
+				}
+			}
+
+			//Build color (higher points are red, mid points are green, lower points are blue, intermediate points are interpolated)
+			var averageValue = (minValue + maxValue) / 2.0;
+			var halfDistance = (maxValue - minValue) / 2.0;
+			var distanceFromMin = 0.0;
+			var distanceFromMax = 0.0;
+			var distanceFromAverage = 0.0;
+			var minParameter;
+			var maxParameter;
+			var midParameter;
+			var r, g, b;
+			var numVertices = vertices.length;
+			
+			for (var valueIndex = 1; valueIndex < numVertices; valueIndex += 3) {
+				r = g = b = 1.0;
+				tempOutput = vertices[valueIndex];
+				distanceFromMin = tempOutput - minValue;
+				distanceFromMax = maxValue - tempOutput;
+				distanceFromAverage = Math.abs(averageValue - tempOutput);
+				minParameter = Math.max(1 - distanceFromMin / halfDistance, 0);
+				maxParameter = Math.max(1 - distanceFromMax / halfDistance, 0);
+				midParameter = 1 - distanceFromAverage / halfDistance;
+				
+				r *= maxParameter;
+				g *= midParameter;
+				b *= minParameter;
+				color.push(r, g, b, 1.0);
+			}
+			
+			//Build indices
+			/* If the vertices are arranged in a grid as such:
+				0 1 2 
+				3 4 5 
+				6 7 8 ...
+				Then this generates the list for the triangle strip:
+				[0, 3, 1, 4, 2, 5, 5, 3, 3, 6, 4, 7, 5, 8 ... ]
+			*/
+			var numRows = (zMax - zMin) / zStep + 1;
+			var numCols = (xMax - xMin) / xStep + 1;
+			var firstIndexOfLastRow = numCols * (numRows - 1);
+			var index = 0;
+			var last = 0;
+			
+			while ( index < firstIndexOfLastRow ) {
+				for (var col = 0; col < numCols; ++col, ++index) {
+					indices.push(index);
+					last = index + numCols;
+					indices.push(last);
+				}
+				
+				//Add degenerate triangles
+				indices.push(last);
+				indices.push(index);
+			}
+		}
+		catch (e) {
+			alert(e);
+		}
+		
+		//Send vertices to GPU
+		gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+		functionVertexBuffer.itemSize = 3;
+		functionVertexBuffer.numItems = vertices.length / functionVertexBuffer.itemSize;
+		
+		//Send indices to GPU
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, functionIndexBuffer);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+		functionIndexBuffer.itemSize = 1;
+		functionIndexBuffer.numItems = indices.length;
+		
+		//Send color data to GPU
+		gl.bindBuffer(gl.ARRAY_BUFFER, functionColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(color), gl.STATIC_DRAW);
+		functionColorBuffer.itemSize = 4;
+		functionColorBuffer.numItems = color.length / functionColorBuffer.itemSize;
+		
+		functionActive = true;
+		
+		var m = mat4.create();
+		mat4.identity(m);
+	}
+	
+    function initBuffers() {
+		functionVertexBuffer = gl.createBuffer();
+		functionIndexBuffer = gl.createBuffer();
+		functionColorBuffer = gl.createBuffer();
+    }
+
+	function cross(output, a, b) {
+		var ax = a[0], ay = a[1], az = a[2];
+		var bx = b[0], by = b[1], bz = b[2];
+
+		output[0] = ay * bz - az * by;
+		output[1] = az * bx - ax * bz;
+		output[2] = ax * by - ay * bx;
+		
+		return output;
+	}
+	
+	function buildCameraChangeOfCoordMatrix(outputMatrix, cameraPosition, lookAtPoint, up) {
+	
+		//Build camera look-at vector
+		var w = vec3.create();
+		w[0] = cameraPosition[0] - lookAtPoint[0];
+		w[1] = cameraPosition[1] - lookAtPoint[1];
+		w[2] = cameraPosition[2] - lookAtPoint[2];
+		vec3.normalize(w, w);
+		
+		//Build right axis
+		var u = vec3.create();
+		cross(u, w, up);
+		vec3.normalize(u, u); //In case of floating point imprecision. Probably unneccessary.
+		
+		//Build up axis
+		var v = vec3.create();
+		cross(v, u, w);
+		vec3.normalize(v, v); //Probably unnecessary
+		
+		var a = -vec3.dot(cameraPosition, u);
+		var b = -vec3.dot(cameraPosition, v);
+		var c = -vec3.dot(cameraPosition, w);
+		
+		//Build inverse
+		outputMatrix[0]  = u[0], outputMatrix[1]  = v[0], outputMatrix[2]  = w[0], outputMatrix[3]  = 0,
+		outputMatrix[4]  = u[1], outputMatrix[5]  = v[1], outputMatrix[6]  = w[1], outputMatrix[7]  = 0,
+		outputMatrix[8]  = u[2], outputMatrix[9]  = v[2], outputMatrix[10] = w[2], outputMatrix[11] = 0,
+		outputMatrix[12] = a,    outputMatrix[13] = b,    outputMatrix[14] = c,    outputMatrix[15] = 1;
+		
+		return outputMatrix;
+	}
+	
+	var cMatrix = mat4.create();
+	
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		
+		//Draw surface
+		if (functionActive) {
+		
+			mat4.identity(mvMatrix);
+			mat4.rotate(mvMatrix, mvMatrix, yTheta, [0.0, 1.0, 0.0]);
+			
+			buildCameraChangeOfCoordMatrix(ciMatrix, [0.0, yCameraOffset, -10.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+			
+			mat4.perspective(pMatrix, hfov, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, functionVertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, functionColorBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, functionColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, functionIndexBuffer);
+			
+			setMatrixUniforms();
+			
+			gl.drawElements(gl.TRIANGLE_STRIP, functionIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+		}
+    }
+
+
+    var lastTime = 0;
+
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+        }
+        lastTime = timeNow;
+    }
+
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+        animate();
+    }
+
+
+    function webGLStart() {
+        var canvas = $('#lesson04-canvas')[0];
+		initMath();
+        if (!initGL(canvas)) {
+			return;
+		}
+        initShaders()
+        initBuffers();
+		initInput();
+		
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+
+	var input = new MouseDragInput();
+	
+	$(function() {
+		//Register real-time input
+		input.registerMouseChangeListener(function(data) {
+			$("#test").text("dx,dy = (" + data.dx + "," + data.dy + ")");
+		});
+		input.init($("#lesson04-canvas")[0]);
+		
+		//Misc events
+		$("#plotButton").click(generateBufferFromExpression);
+		$("#functionInput").keydown(handleKeypress);
+		
+		//Disallow selecting elements
+		$(document).on("selectstart", function() {
+			return false;
+		});
+		webGLStart();
+	});
+	
+	function handleKeypress(event) {
+		//Enter key
+		if (event.keyCode == 13) {
+			$("#plotButton").click();
+		}
+	}
+</script>
+
+
+</head>
+
+
+<body>
+    <canvas id="lesson04-canvas" style="border: none;" width="500" height="500"></canvas>
+	<br>
+	f(x,y): <input type="text" id="functionInput" value="sin(x)*sin(y)" autofocus>
+	<br>
+	<br>
+	<button id="plotButton">Plot</button>
+	<p id="test"></p>
+</body>
+
+</html>
