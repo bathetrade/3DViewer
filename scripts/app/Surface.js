@@ -1,17 +1,18 @@
-define(["math"], function(math) {
+define(["lib/math", "util/Timer"], function(math, Timer) {
 	
-	var ctor = function(input) {
+	var ctor = function(glContext) {
 
 		// Private state
-		var surfaceActive = false;
+		var gl = glContext;
 		var functionVertexBuffer = null;
 		var functionIndexBuffer = null;
 		var functionColorBuffer = null;
 
-		// TODO: add dy (to control camera height)
-		var dx = 0.0;
-
-		var initializeBuffers = function(gl) {
+		if (!glContext) {
+			throw "glContext is not valid";
+		}
+		
+		var initializeBuffers = function() {
 			if (!functionVertexBuffer) {
 				functionVertexBuffer = gl.createBuffer();
 			}
@@ -22,14 +23,6 @@ define(["math"], function(math) {
 				functionColorBuffer = gl.createBuffer();
 			}
 		};
-
-		var inputUpdate = function(mouseData) {
-			dx += mouseData.dx;
-			
-		};
-
-		// Subscribe to mouse input events
-		input.subscribeToMouseChanges(inputUpdate);
 
 		// gridConfig = {
 		//	xConfig : {
@@ -44,9 +37,12 @@ define(["math"], function(math) {
 		//	}
 		// };
 
-		this.create = function(glContext, gridConfig, xyExpression) {
+		this.create = function(gridConfig, xyExpression) {
 
-			initializeBuffers(glContext);
+			var timer = new Timer();
+			timer.start();
+			
+			initializeBuffers();
 
 			var f = math.parse(xyExpression);
 
@@ -55,7 +51,6 @@ define(["math"], function(math) {
 			var indices = [];
 			var tempOutput;
 			var gf = gridConfig;
-			var gl = glContext;
 
 			var minValue = Infinity;
 			var maxValue = -Infinity;
@@ -67,15 +62,15 @@ define(["math"], function(math) {
 			var xMax = gf.xConfig.max;
 			var xStep = gf.xConfig.step;
 			
-			//Build vertices for each point in grid
+			// Build vertices for each point in grid
 			for (var z = zMin; z <= zMax; z += zStep) {
-				for (x = xMin; x <= xMax; x += xStep) {
+				for (var x = xMin; x <= xMax; x += xStep) {
 					tempOutput = f.eval({x : x, y : z});
 					if (isNaN(tempOutput)) {
 						throw "Invalid x or y range. Please enter a different range.";
 					}
 					
-					//Store min / max values for height coloring
+					// Store min / max values for height coloring
 					if (tempOutput < minValue) {
 						minValue = tempOutput;
 					}
@@ -83,11 +78,16 @@ define(["math"], function(math) {
 						maxValue = tempOutput;
 					}
 					
+					// Let 'y' be the 'z' coordinate. People usually think of xy as the ground plane, but
+					// OpenGL thinks of xz as the ground plane.
 					vertices.push(x, tempOutput, z);
 				}
 			}
-
-			//Build color (higher points are red, mid points are green, lower points are blue, intermediate points are interpolated)
+			
+			$("#dbg4").text("Creating position vertices took " + timer.getDeltaMs() + " ms");
+			timer.restart();
+			
+			// Build color (higher points are red, mid points are green, lower points are blue, intermediate points are interpolated)
 			var averageValue = (minValue + maxValue) / 2.0;
 			var halfDistance = (maxValue - minValue) / 2.0;
 			var distanceFromMin = 0.0;
@@ -140,7 +140,7 @@ define(["math"], function(math) {
 				indices.push(last);
 				indices.push(index);
 			}
-
+			
 			//Send vertices to GPU
 			gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
 			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
@@ -158,8 +158,24 @@ define(["math"], function(math) {
 			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(color), gl.STATIC_DRAW);
 			functionColorBuffer.itemSize = 4;
 			functionColorBuffer.numItems = color.length / functionColorBuffer.itemSize;
+			
+			$("#dbg5").text("Everything after the vertices took " + timer.getDeltaMs() + " ms");
+		};
 		
-			functionActive = true;
+		//TODO: improve shader <==> renderable object design. Perhaps a shader factory
+		this.draw = function(shaderProgram) {
+			
+			// Assumes transforms have been set
+			gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, functionVertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, functionColorBuffer);
+			gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, functionColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, functionIndexBuffer);
+			
+			gl.drawElements(gl.TRIANGLE_STRIP, functionIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+			
 		};
 	};
 	return ctor;
