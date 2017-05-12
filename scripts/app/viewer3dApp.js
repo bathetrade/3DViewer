@@ -1,13 +1,15 @@
-define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "lib/glmatrix", "lib/webgl-utils", "util/Timer"], function($, Surface, camera, shaderManager, glmatrix, glutils, Timer) {
+define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseInput", "lib/glmatrix", "lib/webgl-utils", "util/Timer"], function($, Surface, camera, shaderManager, MouseInput, glmatrix, glutils, Timer) {
 	
 	var mat4 = glmatrix.mat4;
 	var surface = null;
 	var gl = null;
 	var lastTime = 0;
-	var surfaceActive = false;
+	var sceneActive = false;
 	var program = null;
+	var mouseInput = null;
 	var initialized = false;
 	var running = false;
+	var mouseSensitivityScale = 0.01;
 	var worldMatrix = mat4.create();
 	mat4.identity(worldMatrix);
 	
@@ -153,7 +155,7 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "lib/glmatri
 		
 		$("#dbg3").text("Time to create surface: " + timer.getDeltaMs() + " ms");
 		
-		surfaceActive = true;
+		sceneActive = true;
 	};
 	
 	var initGl = function() {
@@ -217,10 +219,21 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "lib/glmatri
 	
 	var drawScene = function() {
 		clearBackbufferAndSetViewport();
-		if (surfaceActive) {
+		if (sceneActive) {
 			setUniforms();
 			surface.draw(program);
 		}
+	};
+	
+	var initInput = function() {
+		mouseInput = new MouseInput();
+		mouseInput.init($("#glCanvas")[0]);
+		mouseInput.registerMouseChangeListener(function(data) {
+			if (sceneActive) {
+				$("#dbg9").text("dx,dy = (" + data.dx + "," + data.dy + ")");
+				camera.orbitY(-data.dx * mouseSensitivityScale);
+			}
+		});
 	};
 	
 	// Note: all functions registered with $(function() { }) will execute in the order they were registered.
@@ -236,6 +249,7 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "lib/glmatri
 				initGlState();
 				initShaders();
 				initCamera();
+				initInput();
 				tick();
 			});
 			initialized = true;

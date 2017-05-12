@@ -4,7 +4,6 @@ define(["lib/glmatrix"], function(glmatrix) {
 	var dThetaY = 0.0;
 	var orbitRadius = 10.0;
 	var cameraHeight = 5.0;
-	
 	var viewMatrix = mat4.create();
 	var projMatrix = null;
 	
@@ -58,7 +57,7 @@ define(["lib/glmatrix"], function(glmatrix) {
 	};
 	
 	var orbitYPrivate = function(dTheta) {
-		dThetaY += dThetaY % 2 * Math.PI;
+		dThetaY = (dThetaY + dTheta) % (2*Math.PI);
 		var x = orbitRadius * -Math.sin(dThetaY);
 		var z = orbitRadius * Math.cos(dThetaY);
 		buildCameraChangeOfCoordMatrix(viewMatrix, [x, cameraHeight, z], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
