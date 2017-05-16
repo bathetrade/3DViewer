@@ -1,6 +1,6 @@
 define(["lib/math", "util/Timer"], function(math, Timer) {
 	
-	var ctor = function(glContext) {
+	return function Surface(glContext) {
 
 		// Private state
 		var gl = glContext;
@@ -162,7 +162,6 @@ define(["lib/math", "util/Timer"], function(math, Timer) {
 			$("#dbg5").text("Everything after the vertices took " + timer.getDeltaMs() + " ms");
 		};
 		
-		//TODO: improve shader <==> renderable object design. Perhaps a shader factory
 		this.draw = function(shaderProgram) {
 			
 			// Assumes transforms have been set
@@ -178,5 +177,5 @@ define(["lib/math", "util/Timer"], function(math, Timer) {
 			
 		};
 	};
-	return ctor;
+	
 });

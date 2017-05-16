@@ -1,21 +1,21 @@
-define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseInput", "lib/glmatrix", "lib/webgl-utils", "util/Timer"], function($, Surface, camera, shaderManager, MouseInput, glmatrix, glutils, Timer) {
+define(["jquery", "app/Surface", "app/Scene", "app/MouseInput", "lib/math", "lib/webgl-utils", "util/Timer"], function($, Surface, Scene, MouseInput, math, glutils, Timer) {
 	
-	var mat4 = glmatrix.mat4;
 	var surface = null;
 	var gl = null;
-	var lastTime = 0;
-	var sceneActive = false;
+	var scene = null;
 	var program = null;
 	var mouseInput = null;
+	
+	var lastTime = 0;
+	var mouseSensitivityScale = 0.01;
+	var mouseZoomSensitivityScale = 0.02;
+	
 	var initialized = false;
 	var running = false;
-	var mouseSensitivityScale = 0.01;
-	var worldMatrix = mat4.create();
-	mat4.identity(worldMatrix);
 	
 	var initHandlers = function() {
 		// Generate surface
-		$("#plotButton").click(initSurface);
+		$("#plotButton").click(addSurface);
 		
 		// Disable selection (prevents undesirable highlighting while the user is dragging the mouse with the left mouse button depressed)
 		$(document).on("selectstart", function() {
@@ -23,110 +23,7 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseIn
 		});
 	};
 	
-	var testObject = {
-		test : function() {
-			var f = math.parse($("#functionInput")[0].value);
-			
-			var vertices = [];
-			var color = [];
-			var indices = [];
-			var tempOutput;
-
-			var minValue = Infinity;
-			var maxValue = -Infinity;
-
-			var xMin = -5;
-			var xMax = 5;
-			var zMin = -5;
-			var zMax = 5;
-			var xStep = 0.25;
-			var zStep = 0.25;
-			
-			// Build vertices for each point in grid
-			for (var z = zMin; z <= zMax; z += zStep) {
-				for (var x = xMin; x <= xMax; x += xStep) {
-					tempOutput = f.eval({x : x, y : z});
-					if (isNaN(tempOutput)) {
-						throw "Invalid x or y range. Please enter a different range.";
-					}
-					
-					// Store min / max values for height coloring
-					if (tempOutput < minValue) {
-						minValue = tempOutput;
-					}
-					if (tempOutput > maxValue) {
-						maxValue = tempOutput;
-					}
-					
-					// Let 'y' be the 'z' coordinate. People usually think of xy as the ground plane, but
-					// OpenGL thinks of xz as the ground plane.
-					vertices.push(x, tempOutput, z);
-				}
-			}
-		}
-	};
-	
-	var createSurfaceTest = function() {
-		
-		var dMs = 0;
-		var lastTime = Date.now();
-		var curTime = lastTime;
-		
-		var f = math.parse($("#functionInput")[0].value);
-		
-		var vertices = [];
-		var color = [];
-		var indices = [];
-		var tempOutput;
-
-		var minValue = Infinity;
-		var maxValue = -Infinity;
-
-		var xMin = -5;
-		var xMax = 5;
-		var zMin = -5;
-		var zMax = 5;
-		var xStep = 0.25;
-		var zStep = 0.25;
-		
-		// Build vertices for each point in grid
-		for (var z = zMin; z <= zMax; z += zStep) {
-			for (var x = xMin; x <= xMax; x += xStep) {
-				tempOutput = f.eval({x : x, y : z});
-				if (isNaN(tempOutput)) {
-					throw "Invalid x or y range. Please enter a different range.";
-				}
-				
-				// Store min / max values for height coloring
-				if (tempOutput < minValue) {
-					minValue = tempOutput;
-				}
-				if (tempOutput > maxValue) {
-					maxValue = tempOutput;
-				}
-				
-				// Let 'y' be the 'z' coordinate. People usually think of xy as the ground plane, but
-				// OpenGL thinks of xz as the ground plane.
-				vertices.push(x, tempOutput, z);
-			}
-		}
-		
-		dMs = Date.now() - lastTime;
-		$("#dbg6").text("Test surface creation took " + dMs + " ms");
-	};
-	
-	var createSurfaceTest2 = function() {
-		var dMs = 0;
-		var lastTime = Date.now();
-		var curTime = lastTime;
-		
-		testObject.test();
-		
-		dMs = Date.now() - lastTime;
-		$("#dbg7").text("Test surface creation (#2) took " + dMs + " ms");
-	};
-	
-	var initSurface = function() {
+	var addSurface = function() {
 		
 		var timer = new Timer();
 		timer.start();
@@ -140,6 +37,7 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseIn
 		timer.restart();
 		
 		//TODO: allow user to config xy settings
+		//TODO: change to xz
 		surface.create({
 			xConfig : {
 				min : -10,
@@ -153,9 +51,12 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseIn
 			}
 		}, $("#functionInput")[0].value);
 		
-		$("#dbg3").text("Time to create surface: " + timer.getDeltaMs() + " ms");
+		//TODO: add real ID
+		if (!scene.hasEntity("functionInput")) {
+			scene.addEntity(surface, "functionInput");
+		}
 		
-		sceneActive = true;
+		$("#dbg3").text("Time to create surface: " + timer.getDeltaMs() + " ms");
 	};
 	
 	var initGl = function() {
@@ -173,66 +74,39 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseIn
         }
 	};
 	
+	var initScene = function() {
+		scene = new Scene(gl);
+	};
+	
 	var initGlState = function() {
 		gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
 	};
 	
-	var initShaders = function() {
-		program = shaderManager.createShaderProgram(gl);
-		gl.useProgram(program);
-	};
-	
-	var initCamera = function() {
-		
-		camera.setLens(Math.PI / 4, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
-		
-		// Send project / world matrices to shader, since they don't change (only the view matrix changes)
-		gl.uniformMatrix4fv(program.projectionMatrix, false, camera.getProjectionMatrix());
-		gl.uniformMatrix4fv(program.worldMatrix, false, worldMatrix);
-	}
-	
 	// Animation / drawing functions
 	var tick = function() {
 		requestAnimFrame(tick);
-        drawScene();
-        animate();
-	};
-	
-	var animate = function() {
-		var timeNow = new Date().getTime();
-        if (lastTime != 0) {
-            var elapsed = timeNow - lastTime;
-        }
-        lastTime = timeNow;
-	};
-	
-	//TODO: make this much more efficient (don't need to set projection matrix or world matrix every time)
-	var setUniforms = function() {
-		gl.uniformMatrix4fv(program.viewMatrix, false, camera.getViewMatrix());
-	};
-	
-	var clearBackbufferAndSetViewport = function() {
-		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-	};
-	
-	var drawScene = function() {
-		clearBackbufferAndSetViewport();
-		if (sceneActive) {
-			setUniforms();
-			surface.draw(program);
-		}
+        scene.draw();
 	};
 	
 	var initInput = function() {
 		mouseInput = new MouseInput();
 		mouseInput.init($("#glCanvas")[0]);
-		mouseInput.registerMouseChangeListener(function(data) {
-			if (sceneActive) {
-				$("#dbg9").text("dx,dy = (" + data.dx + "," + data.dy + ")");
-				camera.orbitY(-data.dx * mouseSensitivityScale);
-			}
+		mouseInput.registerMouseDragListener(function(data) {
+			var dx = data.dx;
+			var dy = data.dy;
+			var theta = math.sqrt(dx * dx + dy * dy) * mouseSensitivityScale;
+			
+			$("#dbg9").text("dx,dy = (" + dx + "," + dy + ")");
+			
+			// Example of why this works: imagine the user dragging the mouse along the line t(1,1).
+			// Then, the surface will rotate along the orthogonal axis described by t(-1,1).
+			// The axis of rotation always lies in the xy plane.
+			scene.rotate(-theta, [-dy, dx, 0]);
+		});
+		
+		mouseInput.registerMouseScrollListener(function(data) {
+			scene.zoom(data.dy * mouseZoomSensitivityScale);
 		});
 	};
 	
@@ -246,9 +120,8 @@ define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseIn
 			$(function() {
 				initHandlers();
 				initGl();
+				initScene();
 				initGlState();
-				initShaders();
-				initCamera();
 				initInput();
 				tick();
 			});

@@ -1,9 +1,8 @@
 define(["lib/glmatrix"], function(glmatrix) {
+	
 	var mat4 = glmatrix.mat4;
 	var vec3 = glmatrix.vec3;
-	var dThetaY = 0.0;
-	var orbitRadius = 10.0;
-	var cameraHeight = 5.0;
+	
 	var viewMatrix = mat4.create();
 	var projMatrix = null;
 	
@@ -12,6 +11,14 @@ define(["lib/glmatrix"], function(glmatrix) {
 	var near = null;
 	var far = null;
 	var lensChanged = false;
+	
+	// Initialize camera motion vector
+	var t = 5.0;
+	var cameraPosition = vec3.create();
+	var cameraMotionVector = vec3.fromValues(0, 1, 2);
+	vec3.normalize(cameraMotionVector, cameraMotionVector);
+	
+
 	
 	var cross = function(output, a, b) {
 		var ax = a[0], ay = a[1], az = a[2];
@@ -24,6 +31,7 @@ define(["lib/glmatrix"], function(glmatrix) {
 		return output;
 	};
 	
+	//TODO: Not using. Remove?
 	var buildCameraChangeOfCoordMatrix = function(outputMatrix, cameraPosition, lookAtPoint, up) {
 	
 		//Build z axis 
@@ -56,22 +64,20 @@ define(["lib/glmatrix"], function(glmatrix) {
 		return outputMatrix;
 	};
 	
-	var orbitYPrivate = function(dTheta) {
-		dThetaY = (dThetaY + dTheta) % (2*Math.PI);
-		var x = orbitRadius * -Math.sin(dThetaY);
-		var z = orbitRadius * Math.cos(dThetaY);
-		buildCameraChangeOfCoordMatrix(viewMatrix, [x, cameraHeight, z], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+	var setCameraPosition = function(t) {
+		vec3.scale(cameraPosition, cameraMotionVector, t);
+		buildCameraChangeOfCoordMatrix(viewMatrix, cameraPosition, [0,0,0], [0,1,0]);
 	};
 	
-	// Initialize camera
-	orbitYPrivate(0);
+	// Initialize camera position
+	setCameraPosition(t);
 	
 	return {
-		reset : function() {
-			mat4.identity(viewMatrix);
-		},
 		
-		orbitY : orbitYPrivate,
+		advance : function(amt) {
+			t += amt;
+			setCameraPosition(t);
+		},
 		
 		getViewMatrix : function() {
 			return viewMatrix;

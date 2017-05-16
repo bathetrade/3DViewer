@@ -5,9 +5,18 @@ define(function() {
 		var initialized = false;
 		var mouseDown = false;
 		var targetRef = null;
-		var mouseListeners = [];
+		var mouseDragListeners = [];
+		var mouseScrollListeners = [];
 		
 		//Private methods
+		
+		var fireListeners = function(listeners, data) {
+			var numListeners = listeners.length;
+			for (var i = 0; i < numListeners; ++i) {
+				listeners[i](data);
+			}
+		};
+		
 		var addEvent = function(obj, event, func) {
 			if (obj.addEventListener) {
 				obj.addEventListener(event, func, false);
@@ -19,25 +28,29 @@ define(function() {
 		
 		var handleMouseDown = function() {
 			mouseDown = true;
-		}
+		};
 		
 		var handleMouseUp = function() {
 			mouseDown = false;
-		}
+		};
 		
-		var handleMouseMove = function(event) {
+		var handleMouseMove = function(mouseEvent) {
 			if (!mouseDown) {
 				return;
 			}
 			
-			var numListeners = mouseListeners.length;
-			for(var i = 0; i < numListeners; ++i) {
-				mouseListeners[i]({
-					dx : event.movementX,
-					dy : event.movementY
-				});
-			}
-		}
+			fireListeners(mouseDragListeners, {
+				dx : mouseEvent.movementX,
+				dy : mouseEvent.movementY
+			});
+			
+		};
+		
+		var handleMouseScrollWheel = function(wheelEvent) {
+			fireListeners(mouseScrollListeners, {
+				dy : wheelEvent.deltaY
+			});
+		};
 		
 		this.init = function(target) {
 			if (initialized) {
@@ -51,16 +64,19 @@ define(function() {
 			targetRef = target;
 			
 			addEvent(target, "mousedown", handleMouseDown);
+			addEvent(target, "wheel", handleMouseScrollWheel);
 			addEvent(window, "mouseup", handleMouseUp);
 			addEvent(window, "mousemove", handleMouseMove);
 			
 			initialized = true;
 		};
 		
-		this.registerMouseChangeListener = function(func) {
-			if (func) {
-				mouseListeners.push(func);
-			}
-		}
+		this.registerMouseDragListener = function(func) {
+			mouseDragListeners.push(func);
+		};
+		
+		this.registerMouseScrollListener = function(func) {
+			mouseScrollListeners.push(func);
+		};
 	};
 });
