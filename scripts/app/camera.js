@@ -18,8 +18,6 @@ define(["lib/glmatrix"], function(glmatrix) {
 	var cameraMotionVector = vec3.fromValues(0, 1, 2);
 	vec3.normalize(cameraMotionVector, cameraMotionVector);
 	
-
-	
 	var cross = function(output, a, b) {
 		var ax = a[0], ay = a[1], az = a[2];
 		var bx = b[0], by = b[1], bz = b[2];
@@ -31,7 +29,6 @@ define(["lib/glmatrix"], function(glmatrix) {
 		return output;
 	};
 	
-	//TODO: Not using. Remove?
 	var buildCameraChangeOfCoordMatrix = function(outputMatrix, cameraPosition, lookAtPoint, up) {
 	
 		//Build z axis 

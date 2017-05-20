@@ -1,26 +1,27 @@
-define(["lib/math", "util/Timer"], function(math, Timer) {
+define(["app/BoundingBox", "lib/glmatrix", "lib/math", "util/Timer"], function(BoundingBox, glmatrix, math, Timer) {
 	
 	return function Surface(glContext) {
 
 		// Private state
-		var gl = glContext;
-		var functionVertexBuffer = null;
-		var functionIndexBuffer = null;
-		var functionColorBuffer = null;
-
+		var _gl = glContext;
+		var _functionVertexBuffer = null;
+		var _functionIndexBuffer = null;
+		var _functionColorBuffer = null;
+		var _boundingBox = null;
+		
 		if (!glContext) {
 			throw "glContext is not valid";
 		}
 		
 		var initializeBuffers = function() {
-			if (!functionVertexBuffer) {
-				functionVertexBuffer = gl.createBuffer();
+			if (!_functionVertexBuffer) {
+				_functionVertexBuffer = _gl.createBuffer();
 			}
-			if (!functionIndexBuffer) {
-				functionIndexBuffer = gl.createBuffer();
+			if (!_functionIndexBuffer) {
+				_functionIndexBuffer = _gl.createBuffer();
 			}
-			if (!functionColorBuffer) {
-				functionColorBuffer = gl.createBuffer();
+			if (!_functionColorBuffer) {
+				_functionColorBuffer = _gl.createBuffer();
 			}
 		};
 
@@ -70,7 +71,7 @@ define(["lib/math", "util/Timer"], function(math, Timer) {
 						throw "Invalid x or y range. Please enter a different range.";
 					}
 					
-					// Store min / max values for height coloring
+					// Store min / max values for height coloring and bounding box
 					if (tempOutput < minValue) {
 						minValue = tempOutput;
 					}
@@ -82,6 +83,14 @@ define(["lib/math", "util/Timer"], function(math, Timer) {
 					// OpenGL thinks of xz as the ground plane.
 					vertices.push(x, tempOutput, z);
 				}
+			}
+			
+			// Bounding box in local coordinate space
+			if (!_boundingBox) {
+				_boundingBox = new BoundingBox([xMin, minValue, zMin], [xMax, maxValue, zMax]);
+			}
+			else {
+				_boundingBox.set([xMin, minValue, zMin], [xMax, maxValue, zMax]);
 			}
 			
 			$("#dbg4").text("Creating position vertices took " + timer.getDeltaMs() + " ms");
@@ -142,39 +151,43 @@ define(["lib/math", "util/Timer"], function(math, Timer) {
 			}
 			
 			//Send vertices to GPU
-			gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-			functionVertexBuffer.itemSize = 3;
-			functionVertexBuffer.numItems = vertices.length / functionVertexBuffer.itemSize;
+			_gl.bindBuffer(_gl.ARRAY_BUFFER, _functionVertexBuffer);
+			_gl.bufferData(_gl.ARRAY_BUFFER, new Float32Array(vertices), _gl.STATIC_DRAW);
+			_functionVertexBuffer.itemSize = 3;
+			_functionVertexBuffer.numItems = vertices.length / _functionVertexBuffer.itemSize;
 		
 			//Send indices to GPU
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, functionIndexBuffer);
-			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-			functionIndexBuffer.itemSize = 1;
-			functionIndexBuffer.numItems = indices.length;
+			_gl.bindBuffer(_gl.ELEMENT_ARRAY_BUFFER, _functionIndexBuffer);
+			_gl.bufferData(_gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), _gl.STATIC_DRAW);
+			_functionIndexBuffer.itemSize = 1;
+			_functionIndexBuffer.numItems = indices.length;
 		
 			//Send color data to GPU
-			gl.bindBuffer(gl.ARRAY_BUFFER, functionColorBuffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(color), gl.STATIC_DRAW);
-			functionColorBuffer.itemSize = 4;
-			functionColorBuffer.numItems = color.length / functionColorBuffer.itemSize;
+			_gl.bindBuffer(_gl.ARRAY_BUFFER, _functionColorBuffer);
+			_gl.bufferData(_gl.ARRAY_BUFFER, new Float32Array(color), _gl.STATIC_DRAW);
+			_functionColorBuffer.itemSize = 4;
+			_functionColorBuffer.numItems = color.length / _functionColorBuffer.itemSize;
 			
 			$("#dbg5").text("Everything after the vertices took " + timer.getDeltaMs() + " ms");
 		};
 		
 		this.draw = function(shaderProgram) {
 			
-			// Assumes transforms have been set
-			gl.bindBuffer(gl.ARRAY_BUFFER, functionVertexBuffer);
-			gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, functionVertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			_gl.bindBuffer(_gl.ARRAY_BUFFER, _functionVertexBuffer);
+			_gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, _functionVertexBuffer.itemSize, _gl.FLOAT, false, 0, 0);
 			
-			gl.bindBuffer(gl.ARRAY_BUFFER, functionColorBuffer);
-			gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, functionColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+			_gl.bindBuffer(_gl.ARRAY_BUFFER, _functionColorBuffer);
+			_gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, _functionColorBuffer.itemSize, _gl.FLOAT, false, 0, 0);
 			
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, functionIndexBuffer);
+			_gl.bindBuffer(_gl.ELEMENT_ARRAY_BUFFER, _functionIndexBuffer);
 			
-			gl.drawElements(gl.TRIANGLE_STRIP, functionIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+			_gl.drawElements(_gl.TRIANGLE_STRIP, _functionIndexBuffer.numItems, _gl.UNSIGNED_SHORT, 0);
 			
+		};
+		
+		// Returns bounding box of surface in local coordinate space
+		this.getBoundingBox = function() {
+			return _boundingBox;
 		};
 	};
 	
