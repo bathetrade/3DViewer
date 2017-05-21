@@ -1,4 +1,4 @@
-define(["lib/glmatrix"], function(glmatrix) {
+define(["jquery", "lib/glmatrix"], function($, glmatrix) {
 	
 	var mat4 = glmatrix.mat4;
 	var vec3 = glmatrix.vec3;
@@ -14,6 +14,8 @@ define(["lib/glmatrix"], function(glmatrix) {
 	
 	// Initialize camera motion vector
 	var t = 5.0;
+	var minT = 1.0;
+	var maxT = 20.0;
 	var cameraPosition = vec3.create();
 	var cameraMotionVector = vec3.fromValues(0, 1, 2);
 	vec3.normalize(cameraMotionVector, cameraMotionVector);
@@ -72,7 +74,11 @@ define(["lib/glmatrix"], function(glmatrix) {
 	return {
 		
 		advance : function(amt) {
-			t += amt;
+			
+			// Clamp t to [minT, maxT]
+			t = Math.max(t + amt, minT);
+			t = Math.min(t, maxT);
+			
 			setCameraPosition(t);
 		},
 		

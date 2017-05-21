@@ -131,6 +131,9 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 			if (!_sceneBoundingBox) {
 				_sceneBoundingBox = new BoundingBox([0,0,0],[0,0,0]);
 			}
+			else {
+				_sceneBoundingBox.set([0,0,0],[0,0,0]);
+			}
 			
 			var numEntities = _entities.length;
 			var entity;
@@ -172,8 +175,6 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 			}
 			_entityInfo[id] = _entities.length;
 			_entities.push(entity);
-			
-			applyNewViewboxMappingMatrix();
 		};
 		
 		this.hasEntity = function(id) {
@@ -187,17 +188,18 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 				// Remove entity from list and remove entity ID from _entityInfo
 				_entities.splice(entityIndex, 1);
 				delete _entityInfo[id];
-				
-				// Recalculate world matrix when removing entity.
-				// If scene is empty, reinitialize state for next time addEntity() is called.
-				var numEntities = _entities.length;
-				if (numEntities > 0) {
-					applyNewViewboxMappingMatrix
-				}
-				else {
-					resetViewboxMappingMatrices();
-				}
 			}
+		};
+		
+		// Necessary to call if an entity is modified by an external component.
+		// Recomputes the ST transformations.
+		this.refresh = function() {
+			var numEntities = _entities.length;
+			if (numEntities == 0) {
+				resetViewboxMappingMatrices();
+				return;
+			}
+			applyNewViewboxMappingMatrix();
 		};
 		
 		this.draw = function() {

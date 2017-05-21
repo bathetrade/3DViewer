@@ -8,7 +8,7 @@ define(["jquery", "app/Surface", "app/Scene", "app/MouseInput", "lib/math", "lib
 	
 	var lastTime = 0;
 	var mouseSensitivityScale = 0.01;
-	var mouseZoomSensitivityScale = 0.02;
+	var mouseZoomSensitivityScale = 0.01;
 	
 	var initialized = false;
 	var running = false;
@@ -55,6 +55,7 @@ define(["jquery", "app/Surface", "app/Scene", "app/MouseInput", "lib/math", "lib
 		if (!scene.hasEntity("functionInput")) {
 			scene.addEntity(surface, "functionInput");
 		}
+		scene.refresh();
 		
 		$("#dbg3").text("Time to create surface: " + timer.getDeltaMs() + " ms");
 	};
