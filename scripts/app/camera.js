@@ -1,4 +1,4 @@
-define(["jquery", "lib/glmatrix"], function($, glmatrix) {
+define(["lib/glmatrix"], function(glmatrix) {
 	
 	var mat4 = glmatrix.mat4;
 	var vec3 = glmatrix.vec3;
