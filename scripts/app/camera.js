@@ -4,7 +4,7 @@ define(["lib/glmatrix"], function(glmatrix) {
 	var vec3 = glmatrix.vec3;
 	
 	var viewMatrix = mat4.create();
-	var projMatrix = null;
+	var projMatrix = mat4.create();
 	
 	var vFov = Math.PI / 4;
 	var aspect = null;
@@ -94,7 +94,6 @@ define(["lib/glmatrix"], function(glmatrix) {
 			
 			// Recreate matrix if lens has changed
 			if (lensChanged) {
-				projMatrix = mat4.create();
 				mat4.perspective(projMatrix, vFov, aspect, near, far);
 				lensChanged = false;
 			}

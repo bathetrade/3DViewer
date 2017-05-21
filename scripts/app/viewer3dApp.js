@@ -16,7 +16,13 @@ define(["jquery", "app/Surface", "app/Scene", "app/MouseInput", "lib/math", "lib
 	var initHandlers = function() {
 		// Generate surface
 		$("#plotButton").click(addSurface);
-		
+
+		// Press button when 'enter' key is pressed
+		$("#functionInput").on("keydown", function(event) {
+			if (event.which == 13) {
+				$("#plotButton").trigger("click");
+			}
+		});
 		// Disable selection (prevents undesirable highlighting while the user is dragging the mouse with the left mouse button depressed)
 		$(document).on("selectstart", function() {
 			return false;
