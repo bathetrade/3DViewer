@@ -40,14 +40,14 @@ define(["jquery", "app/Surface", "app/Scene", "app/MouseInput", "lib/math", "lib
 		//TODO: change to xz
 		surface.create({
 			xConfig : {
-				min : -10,
-				max : 10,
-				step : 0.5
+				min : -5,
+				max : 5,
+				resolution : 50
 			},
 			yConfig : {
-				min : -10,
-				max : 10,
-				step : 0.5
+				min : -5,
+				max : 5,
+				resolution : 50
 			}
 		}, $("#functionInput")[0].value);
 		

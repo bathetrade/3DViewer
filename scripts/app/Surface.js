@@ -1,4 +1,4 @@
-define(["app/BoundingBox", "lib/glmatrix", "lib/math", "util/Timer"], function(BoundingBox, glmatrix, math, Timer) {
+define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math", "util/Timer"], function(BoundingBox, floatUtil, glmatrix, math, Timer) {
 	
 	return function Surface(glContext) {
 
@@ -29,15 +29,17 @@ define(["app/BoundingBox", "lib/glmatrix", "lib/math", "util/Timer"], function(B
 		//	xConfig : {
 		//		min : <float>,
 		//		max : <float>,
-		//		step : <float>
+		//		resolution : <float>
 		//	},
 		//	yConfig : {
 		//		min : <float>,
 		//		max : <float>,
-		//		step : <float>
+		//		resolution : <float>
 		//	}
 		// };
-
+		// Resolution is how many times the distance between min and max is subdivided.
+		// For instance, there will be (resolution + 1) points between on the interval [min,max].
+		// The step size will be (max - min) / resolution
 		this.create = function(gridConfig, xyExpression) {
 
 			var timer = new Timer();
@@ -58,14 +60,16 @@ define(["app/BoundingBox", "lib/glmatrix", "lib/math", "util/Timer"], function(B
 
 			var zMin = gf.yConfig.min;
 			var zMax = gf.yConfig.max;
-			var zStep = gf.yConfig.step;
+			var zRes = gf.yConfig.resolution;
 			var xMin = gf.xConfig.min;
 			var xMax = gf.xConfig.max;
-			var xStep = gf.xConfig.step;
+			var xRes = gf.xConfig.resolution;
+			var xStep = (xMax - xMin) / xRes;
+			var zStep = (zMax - zMin) / zRes;
 			
 			// Build vertices for each point in grid
-			for (var z = zMin; z <= zMax; z += zStep) {
-				for (var x = xMin; x <= xMax; x += xStep) {
+			for (var z = zMin; floatUtil.compare(z, zMax) <= 0; z += zStep) {
+				for (var x = xMin; floatUtil.compare(x, xMax) <= 0; x += xStep) {
 					tempOutput = f.eval({x : x, y : z});
 					if (isNaN(tempOutput)) {
 						throw "Invalid x or y range. Please enter a different range.";
