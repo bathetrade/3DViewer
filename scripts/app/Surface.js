@@ -180,10 +180,6 @@ define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math"
 					wireframeIndices.push(ul);
 					wireframeIndices.push(ur);
 					
-					// Bottom line of quad
-					wireframeIndices.push(bl);
-					wireframeIndices.push(br);
-					
 					// Right line of quad
 					wireframeIndices.push(br);
 					wireframeIndices.push(ur);
@@ -205,6 +201,12 @@ define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math"
 				++ur;
 				++bl;
 				++br;
+			}
+			
+			// Finish the final row
+			for (var col = 0; col < finalColIndex; ++col) {
+				wireframeIndices.push(ul++);
+				wireframeIndices.push(ul);
 			}
 			
 			//Send vertices to GPU
