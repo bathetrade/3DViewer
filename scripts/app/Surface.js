@@ -130,9 +130,11 @@ define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math"
 				for (var valueIndex = 1; valueIndex < numVertices; valueIndex += 3) {
 					r = g = b = 1.0;
 					tempOutput = vertices[valueIndex];
+					
 					distanceFromMin = tempOutput - minValue;
 					distanceFromMax = maxValue - tempOutput;
 					distanceFromAverage = Math.abs(averageValue - tempOutput);
+					
 					minParameter = Math.max(1 - distanceFromMin / halfDistance, 0);
 					maxParameter = Math.max(1 - distanceFromMax / halfDistance, 0);
 					midParameter = 1 - distanceFromAverage / halfDistance;
@@ -140,6 +142,7 @@ define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math"
 					r *= maxParameter;
 					g *= midParameter;
 					b *= minParameter;
+					
 					color.push(r, g, b, 1);
 				}
 			}
