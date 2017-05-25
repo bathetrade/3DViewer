@@ -1,9 +1,14 @@
 define(function() {
 	
-	return function BoundingBox(point1, point2) {
+	return function BoundingBox() {
 		
-		var _minX, _minY, _minZ;
-		var _maxX, _maxY, _maxZ;
+		var _minX = Infinity;
+		var _minY = Infinity; 
+		var _minZ = Infinity;
+		
+		var _maxX = -Infinity;
+		var _maxY = -Infinity;
+		var _maxZ = -Infinity;
 		
 		var _bounds = [ [0,0,0], [0,0,0] ];
 		var _center = [0,0,0];
@@ -114,10 +119,10 @@ define(function() {
 			_centerCached = false;
 		};
 		
-		// Invariant
-		verifyArguments(point1, point2);
-		
-		// Initialize
-		this.set(point1, point2);
+		this.reset = function() {
+			_minX = _minY = _minZ = Infinity;
+			_maxX = _maxY = _maxZ = -Infinity;
+			_centerCached = false;
+		};
 	};
 });

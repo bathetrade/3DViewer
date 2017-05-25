@@ -97,11 +97,9 @@ define(["app/BoundingBox", "app/floatingPointHelper", "lib/glmatrix", "lib/math"
 			
 			// Bounding box in local coordinate space
 			if (!_boundingBox) {
-				_boundingBox = new BoundingBox([xMin, minValue, zMin], [xMax, maxValue, zMax]);
+				_boundingBox = new BoundingBox();
 			}
-			else {
-				_boundingBox.set([xMin, minValue, zMin], [xMax, maxValue, zMax]);
-			}
+			_boundingBox.set([xMin, minValue, zMin], [xMax, maxValue, zMax]);
 			
 			$("#dbg4").text("Creating position vertices took " + timer.getDeltaMs() + " ms");
 			timer.restart();

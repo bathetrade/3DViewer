@@ -30,7 +30,8 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 		// The box (whose center is (0,0,0)) to which all surfaces will be mapped
 		var getCenteredViewingBox = function() {
 			if (!_viewingBox) {
-				_viewingBox = new BoundingBox([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]);
+				_viewingBox = new BoundingBox();
+				_viewingBox.set([-1.0, -0.5, -1.0], [1.0, 0.5, 1.0]);
 			}
 			return _viewingBox;
 		};
@@ -129,10 +130,10 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 		
 		var setSceneBoundingBox = function() {
 			if (!_sceneBoundingBox) {
-				_sceneBoundingBox = new BoundingBox([0,0,0],[0,0,0]);
+				_sceneBoundingBox = new BoundingBox();
 			}
 			else {
-				_sceneBoundingBox.set([0,0,0],[0,0,0]);
+				_sceneBoundingBox.reset();
 			}
 			
 			var numEntities = _entities.length;
@@ -159,9 +160,24 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 				_scalingVector = [0,0,0];
 			}
 			
-			_scalingVector[0] = xLenVb / xLenScene;
-			_scalingVector[1] = yLenVb / yLenScene;
-			_scalingVector[2] = zLenVb / zLenScene;
+			// Set the scale factors used for mapping the scene to the viewbox.
+			// For instance, if the scene's bounding box has a length along the x axis
+			// of 10, and the viewbox has a width of 2.5, then we want to shrink the
+			// scene's bounding box so it fits snugly in the viewbox. Therefore, each
+			// vertex in the scene will have its x coordinate scaled by 2.5/10 = 1/4.
+			// This happens after the scene's bounding box is translated to the viewbox.
+			//
+			// If one of the entities is degenerate in some way, for instance, the surface
+			// f(x,z) = 3, we don't want to scale the scene's bounding box in that
+			// direction of degeneracy (in this case, the height, y). Since, scaling
+			// a bounding box amounts to expanding or shrinking this box, if the scene's
+			// bounding box is a rectangle with sides x and z, then we don't want to scale
+			// the height (in fact, we can't, since the height is 0). In this case,
+			// the scale factor is simply one (nothing is done to the vertex in the direction
+			// of degeneracy).
+			_scalingVector[0] = xLenScene != 0 ? xLenVb / xLenScene : 1;
+			_scalingVector[1] = yLenScene != 0 ? yLenVb / yLenScene : 1;
+			_scalingVector[2] = zLenScene != 0 ? zLenVb / zLenScene : 1;
 		};
 		
 		var clearBackbufferAndSetViewport = function() {
