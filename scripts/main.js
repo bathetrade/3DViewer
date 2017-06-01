@@ -1,6 +1,7 @@
 require.config({
 	paths : {
-		"jquery" : "lib/jquery-3.2.1.min"
+		"jquery" : "lib/jquery-ui/external/jquery/jquery",
+		"jquery-ui" : "lib/jquery-ui/jquery-ui"
 	}
 });
 

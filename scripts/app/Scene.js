@@ -17,10 +17,8 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 		
 		glContext.useProgram(_program);
 		
-		// TODO: change near and far after mapping scene to normalized cube
-		camera.setLens(Math.PI / 4, glContext.viewportWidth / glContext.viewportHeight, 0.1, 100.0);
+		camera.setLens(Math.PI / 4, glContext.viewportWidth / glContext.viewportHeight, 0.1, 50.0);
 		
-		// TODO: optimize later
 		var updateUniforms = function() {
 			glContext.uniformMatrix4fv(_program.worldMatrix, false, _worldMatrix);
 			glContext.uniformMatrix4fv(_program.viewMatrix, false, camera.getViewMatrix());
@@ -36,9 +34,10 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 			return _viewingBox;
 		};
 		
-		var resetViewboxMappingMatrices = function() {
+		var resetScene = function() {
 			glmatrix.mat4.identity(_viewboxMappingMatrix);
 			glmatrix.mat4.identity(_inverseViewboxMappingMatrix);
+			glmatrix.mat4.identity(_worldMatrix);
 		};
 		
 		var applyNewViewboxMappingMatrix = function() {
@@ -197,9 +196,16 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 			return _entityInfo.hasOwnProperty(id);
 		};
 		
+		this.getEntity = function(id) {
+			if (this.hasEntity(id)) {
+				return _entities[_entityInfo[id]];
+			}
+			return null;
+		};
+		
 		this.removeEntity = function(id) {
 			var entityIndex = _entityInfo[id];
-			if (entityIndex) {
+			if (entityIndex != null) {
 				
 				// Remove entity from list and remove entity ID from _entityInfo
 				_entities.splice(entityIndex, 1);
@@ -212,7 +218,7 @@ define(["app/camera", "app/shaderManager", "app/BoundingBox", "lib/glmatrix"], f
 		this.refresh = function() {
 			var numEntities = _entities.length;
 			if (numEntities == 0) {
-				resetViewboxMappingMatrices();
+				resetScene();
 				return;
 			}
 			applyNewViewboxMappingMatrix();
