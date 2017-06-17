@@ -118,7 +118,7 @@ define(["jquery", "jquery-ui"], function($) {
 					
 					// Delete the slider and entry when id ref count is 0
 					if (_symbolMap[symbol].ids.size == 0) {
-						_symbolMap[symbol].slider.parents(".sliderEntry").remove();
+						_symbolMap[symbol].slider.parents(".entry").remove();
 						delete _symbolMap[symbol];
 					}
 				}

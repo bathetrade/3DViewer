@@ -49,8 +49,10 @@ define(["app/Surface", "app/Scene", "app/MouseInput", "app/functionUtility", "ap
 		
 		var constants = funcUtil.getConstants(exprTree);
 		var constScope = {};
+		
+		_gui.updateSliders(constants, id);
+		
 		if (constants.size > 0) {
-			_gui.updateSliders(constants, id);
 			constScope = _gui.getConstantScope(id);
 		}
 		
