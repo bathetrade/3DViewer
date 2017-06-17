@@ -33,7 +33,7 @@ define(["jquery", "jquery-ui"], function($) {
 				step : 0.1,
 				initial : 1
 			},
-			defaultSurface : "sin(x)*sin(y)"
+			defaultSurface : "a*x^2 + b*y^2"
 		};
 		
 		var createSlider = function(symbol) {
@@ -51,9 +51,11 @@ define(["jquery", "jquery-ui"], function($) {
 				slider.on("slide", _sliderCallback);
 			}
 			
-			var sliderEntry = $("<div class='entry'></div>");
+			var sliderEntry = $("<div class='entry sliderEntry'></div>");
 			var sliderContainer = $("<div class='sliderContainer'></div>");
 			var valueNode = $(`<span class='viewer-text viewer-symbol'>${symbol} = <span>${defaults.initial}</span></span>`);
+			
+			sliderEntry.data("symbol", symbol);
 			
 			slider.data("symbol", symbol);
 			slider.data("valueSpan", valueNode.children("span"));
@@ -106,6 +108,23 @@ define(["jquery", "jquery-ui"], function($) {
 				// Associate id with symbol
 				_symbolMap[symbol].ids.add(id);
 			});
+			
+			// Sort new sliders, if any
+			var sliderEntries = section.children(".sliderEntry");
+			sliderEntries.detach().sort(function(entry1, entry2) {
+				var e1Symbol = $.data(entry1, "symbol");
+				var e2Symbol = $.data(entry2, "symbol");
+				if (e1Symbol < e2Symbol) {
+					return -1;
+				}
+				else if (e1Symbol > e2Symbol) {
+					return 1;
+				}
+				else {
+					return 0;
+				}
+			});
+			section.append(sliderEntries);
 			
 			var constantSymbols = Object.keys(constants);
 			
@@ -186,6 +205,8 @@ define(["jquery", "jquery-ui"], function($) {
 			inputEntry.append("<br>");
 			
 			section.append(inputEntry);
+			
+			button.click();
 			
 			_initialized = true;
 		};

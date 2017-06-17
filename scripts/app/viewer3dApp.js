@@ -35,10 +35,17 @@ define(["app/Surface", "app/Scene", "app/MouseInput", "app/functionUtility", "ap
 		_gui.initialize();
 	};
 	
-	// Disable selection (prevents undesirable highlighting while the user is dragging the mouse with the left mouse button depressed)
+	
 	var initHandlers = function() {
+		// Disable selection (prevents undesirable highlighting while the user is 
+		// dragging the mouse with the left mouse button depressed)
 		$(document).on("selectstart", function() {
 			return false;
+		});
+		
+		// Prevents scrolling the window while using the scroll wheel over the surface
+		$("#glCanvas").on("wheel", function(event) {
+			event.preventDefault();
 		});
 	};
 	
@@ -49,8 +56,10 @@ define(["app/Surface", "app/Scene", "app/MouseInput", "app/functionUtility", "ap
 		
 		var constants = funcUtil.getConstants(exprTree);
 		var constScope = {};
+		
+		_gui.updateSliders(constants, id);
+		
 		if (constants.size > 0) {
-			_gui.updateSliders(constants, id);
 			constScope = _gui.getConstantScope(id);
 		}
 		
@@ -114,20 +123,18 @@ define(["app/Surface", "app/Scene", "app/MouseInput", "app/functionUtility", "ap
 		});
 	};
 
-
-	
 	return {
 		init : function() {
 			if (_initialized) {
 				return;
 			}
 			$(function() {
-				initGui();
 				initHandlers();
 				initGl();
 				initScene();
 				initGlState();
 				initInput();
+				initGui();
 				tick();
 			});
 			_initialized = true;
