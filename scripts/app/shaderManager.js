@@ -44,7 +44,7 @@ define(function() {
 		
 		createShaderProgram : function(glContext) {
 			if (initialized) {
-				return;
+				return shaderProgram;
 			}
 			if (!glContext) {
 				throw "Invalid glContext";

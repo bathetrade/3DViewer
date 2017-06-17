@@ -1,258 +1,144 @@
-define(["jquery", "app/Surface", "app/camera", "app/shaderManager", "app/MouseInput", "lib/glmatrix", "lib/webgl-utils", "util/Timer"], function($, Surface, camera, shaderManager, MouseInput, glmatrix, glutils, Timer) {
+define(["app/Surface", "app/Scene", "app/MouseInput", "app/functionUtility", "app/GridConfig", "app/gui/GuiManager", "lib/math", "jquery", "util/Timer", "lib/webgl-utils"], function(Surface, Scene, MouseInput, funcUtil, GridConfig, GuiManager, math, $, Timer) {
 	
-	var mat4 = glmatrix.mat4;
-	var surface = null;
-	var gl = null;
-	var lastTime = 0;
-	var sceneActive = false;
-	var program = null;
-	var mouseInput = null;
-	var initialized = false;
-	var running = false;
-	var mouseSensitivityScale = 0.01;
-	var worldMatrix = mat4.create();
-	mat4.identity(worldMatrix);
+	var _gl = null;
+	var _scene = null;
+	var _mouseInput = null;
+	var _gui = null;
+	
+	var _mouseSensitivityScale = 0.01;
+	var _mouseZoomSensitivityScale = 0.01;
+	
+	var _initialized = false;
+	
+	
+	
+	var initGui = function() {
+		var container = $("#inputContainer");
+		
+		if (container.length == 0) {
+			throw "Could not find element with id 'inputContainer'";
+		}
+		
+		_gui = new GuiManager(container);
+		
+		
+		_gui.plotButtonClicked(function(input, id) {
+			addSurface(input, id);
+		});
+		
+		_gui.sliderChanged(function(symbol, value, ids) {
+			ids.forEach(function(id) {
+				_scene.getEntity(id).update(_gui.getConstantScope(id));
+			});
+		});
+		
+		_gui.initialize();
+	};
+	
 	
 	var initHandlers = function() {
-		// Generate surface
-		$("#plotButton").click(initSurface);
-		
-		// Disable selection (prevents undesirable highlighting while the user is dragging the mouse with the left mouse button depressed)
+		// Disable selection (prevents undesirable highlighting while the user is 
+		// dragging the mouse with the left mouse button depressed)
 		$(document).on("selectstart", function() {
 			return false;
 		});
+		
+		// Prevents scrolling the window while using the scroll wheel over the surface
+		$("#glCanvas").on("wheel", function(event) {
+			event.preventDefault();
+		});
 	};
 	
-	var testObject = {
-		test : function() {
-			var f = math.parse($("#functionInput")[0].value);
-			
-			var vertices = [];
-			var color = [];
-			var indices = [];
-			var tempOutput;
-
-			var minValue = Infinity;
-			var maxValue = -Infinity;
-
-			var xMin = -5;
-			var xMax = 5;
-			var zMin = -5;
-			var zMax = 5;
-			var xStep = 0.25;
-			var zStep = 0.25;
-			
-			// Build vertices for each point in grid
-			for (var z = zMin; z <= zMax; z += zStep) {
-				for (var x = xMin; x <= xMax; x += xStep) {
-					tempOutput = f.eval({x : x, y : z});
-					if (isNaN(tempOutput)) {
-						throw "Invalid x or y range. Please enter a different range.";
-					}
-					
-					// Store min / max values for height coloring
-					if (tempOutput < minValue) {
-						minValue = tempOutput;
-					}
-					if (tempOutput > maxValue) {
-						maxValue = tempOutput;
-					}
-					
-					// Let 'y' be the 'z' coordinate. People usually think of xy as the ground plane, but
-					// OpenGL thinks of xz as the ground plane.
-					vertices.push(x, tempOutput, z);
-				}
-			}
-		}
-	};
-	
-	var createSurfaceTest = function() {
+	var addSurface = function(input, id) {
 		
-		var dMs = 0;
-		var lastTime = Date.now();
-		var curTime = lastTime;
+		var exprTree = math.parse(input);
+		var compiledFunction = exprTree.compile();
 		
-		var f = math.parse($("#functionInput")[0].value);
+		var constants = funcUtil.getConstants(exprTree);
+		var constScope = {};
 		
-		var vertices = [];
-		var color = [];
-		var indices = [];
-		var tempOutput;
-
-		var minValue = Infinity;
-		var maxValue = -Infinity;
-
-		var xMin = -5;
-		var xMax = 5;
-		var zMin = -5;
-		var zMax = 5;
-		var xStep = 0.25;
-		var zStep = 0.25;
+		_gui.updateSliders(constants, id);
 		
-		// Build vertices for each point in grid
-		for (var z = zMin; z <= zMax; z += zStep) {
-			for (var x = xMin; x <= xMax; x += xStep) {
-				tempOutput = f.eval({x : x, y : z});
-				if (isNaN(tempOutput)) {
-					throw "Invalid x or y range. Please enter a different range.";
-				}
-				
-				// Store min / max values for height coloring
-				if (tempOutput < minValue) {
-					minValue = tempOutput;
-				}
-				if (tempOutput > maxValue) {
-					maxValue = tempOutput;
-				}
-				
-				// Let 'y' be the 'z' coordinate. People usually think of xy as the ground plane, but
-				// OpenGL thinks of xz as the ground plane.
-				vertices.push(x, tempOutput, z);
-			}
+		if (constants.size > 0) {
+			constScope = _gui.getConstantScope(id);
 		}
 		
-		dMs = Date.now() - lastTime;
-		$("#dbg6").text("Test surface creation took " + dMs + " ms");
-	};
-	
-	var createSurfaceTest2 = function() {
-		var dMs = 0;
-		var lastTime = Date.now();
-		var curTime = lastTime;
-		
-		testObject.test();
-		
-		dMs = Date.now() - lastTime;
-		$("#dbg7").text("Test surface creation (#2) took " + dMs + " ms");
-	};
-	
-	var initSurface = function() {
-		
-		var timer = new Timer();
-		timer.start();
-		
-		$("#dbg1").text("Before initial surface check");
+		var surface = _scene.getEntity(id);
 		if (!surface) {
-			surface = new Surface(gl);
+			surface = new Surface(_gl);
+			_scene.addEntity(surface, id);
+		}
+		try {
+			surface.create(new GridConfig(-5,5,50, -5, 5, 50), compiledFunction, constScope);
+		}
+		catch (e) {
+			_scene.removeEntity(id);
+			alert(e);
 		}
 		
-		$("#dbg2").text("After initial surface check. " + timer.getDeltaMs() + " ms");
-		timer.restart();
-		
-		//TODO: allow user to config xy settings
-		surface.create({
-			xConfig : {
-				min : -10,
-				max : 10,
-				step : 0.5
-			},
-			yConfig : {
-				min : -10,
-				max : 10,
-				step : 0.5
-			}
-		}, $("#functionInput")[0].value);
-		
-		$("#dbg3").text("Time to create surface: " + timer.getDeltaMs() + " ms");
-		
-		sceneActive = true;
+		_scene.refresh();
 	};
 	
 	var initGl = function() {
 		try {
 			var canvas = $("#glCanvas")[0];
-            gl = canvas.getContext("experimental-webgl");
-            gl.viewportWidth = canvas.width;
-            gl.viewportHeight = canvas.height;
+            _gl = canvas.getContext("experimental-webgl");
+            _gl.viewportWidth = canvas.width;
+            _gl.viewportHeight = canvas.height;
         } 
 		catch (e) {
         }
 		
-        if (!gl) {
-            throw "Could not initialise WebGL, sorry :-(";
+        if (!_gl) {
+            throw "Could not initialize WebGL";
         }
+	};
+	
+	var initScene = function() {
+		_scene = new Scene(_gl);
 	};
 	
 	var initGlState = function() {
-		gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.enable(gl.DEPTH_TEST);
+		_gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        _gl.enable(_gl.DEPTH_TEST);
 	};
 	
-	var initShaders = function() {
-		program = shaderManager.createShaderProgram(gl);
-		gl.useProgram(program);
-	};
-	
-	var initCamera = function() {
-		
-		camera.setLens(Math.PI / 4, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
-		
-		// Send project / world matrices to shader, since they don't change (only the view matrix changes)
-		gl.uniformMatrix4fv(program.projectionMatrix, false, camera.getProjectionMatrix());
-		gl.uniformMatrix4fv(program.worldMatrix, false, worldMatrix);
-	}
-	
-	// Animation / drawing functions
 	var tick = function() {
 		requestAnimFrame(tick);
-        drawScene();
-        animate();
-	};
-	
-	var animate = function() {
-		var timeNow = new Date().getTime();
-        if (lastTime != 0) {
-            var elapsed = timeNow - lastTime;
-        }
-        lastTime = timeNow;
-	};
-	
-	//TODO: make this much more efficient (don't need to set projection matrix or world matrix every time)
-	var setUniforms = function() {
-		gl.uniformMatrix4fv(program.viewMatrix, false, camera.getViewMatrix());
-	};
-	
-	var clearBackbufferAndSetViewport = function() {
-		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-	};
-	
-	var drawScene = function() {
-		clearBackbufferAndSetViewport();
-		if (sceneActive) {
-			setUniforms();
-			surface.draw(program);
-		}
+        _scene.draw();
 	};
 	
 	var initInput = function() {
-		mouseInput = new MouseInput();
-		mouseInput.init($("#glCanvas")[0]);
-		mouseInput.registerMouseChangeListener(function(data) {
-			if (sceneActive) {
-				$("#dbg9").text("dx,dy = (" + data.dx + "," + data.dy + ")");
-				camera.orbitY(-data.dx * mouseSensitivityScale);
-			}
+		_mouseInput = new MouseInput();
+		_mouseInput.init($("#glCanvas")[0]);
+		_mouseInput.registerMouseDragListener(function(data) {
+			var dx = data.dx;
+			var dy = data.dy;
+			var theta = math.sqrt(dx * dx + dy * dy) * _mouseSensitivityScale;
+			_scene.rotate(-theta, [-dy, dx, 0]);
+		});
+		
+		_mouseInput.registerMouseScrollListener(function(data) {
+			_scene.zoom(data.dy * _mouseZoomSensitivityScale);
 		});
 	};
-	
-	// Note: all functions registered with $(function() { }) will execute in the order they were registered.
-	// $(function() { }) is equivalent to $(document).ready(function() { })
+
 	return {
 		init : function() {
-			if (initialized) {
+			if (_initialized) {
 				return;
 			}
 			$(function() {
 				initHandlers();
 				initGl();
+				initScene();
 				initGlState();
-				initShaders();
-				initCamera();
 				initInput();
+				initGui();
 				tick();
 			});
-			initialized = true;
+			_initialized = true;
 		}
 	};
+	
 });
