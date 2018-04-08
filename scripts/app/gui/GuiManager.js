@@ -33,7 +33,7 @@ define(["jquery", "jquery-ui"], function($) {
 				step : 0.1,
 				initial : 1
 			},
-			defaultSurface : "a*x^2 + b*y^2"
+			defaultSurface : "a*cos(b/5*x)*sin(c/5*y)"
 		};
 		
 		var createSlider = function(symbol) {
