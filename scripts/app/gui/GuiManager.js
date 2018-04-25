@@ -33,7 +33,7 @@ define(["jquery", "jquery-ui"], function($) {
 				step : 0.1,
 				initial : 1
 			},
-			defaultSurface : "a*cos(b/5*x)*sin(c/5*y)"
+			defaultSurface : "sin(0.3*a*x)*sin(0.3*b*y)"
 		};
 		
 		var createSlider = function(symbol) {
@@ -53,7 +53,7 @@ define(["jquery", "jquery-ui"], function($) {
 			
 			var sliderEntry = $("<div class='entry sliderEntry'></div>");
 			var sliderContainer = $("<div class='sliderContainer'></div>");
-			var valueNode = $(`<span class='viewer-text viewer-symbol'>${symbol} = <span>${defaults.initial}</span></span>`);
+			var valueNode = $("<span class='viewer-text viewer-symbol'>" + symbol + " = <span>" + defaults.initial + "</span></span>");
 			
 			sliderEntry.data("symbol", symbol);
 			
@@ -61,9 +61,9 @@ define(["jquery", "jquery-ui"], function($) {
 			slider.data("valueSpan", valueNode.children("span"));
 			
 			sliderContainer.append("<br>");
-			sliderContainer.append(`<span class='viewer-text viewer-slide-left'>${defaults.min}</span>`);
+			sliderContainer.append("<span class='viewer-text viewer-slide-left'>" + defaults.min + "</span>");
 			sliderContainer.append(slider);
-			sliderContainer.append(`<span class='viewer-text viewer-slide-right'>${defaults.max}</span>`);
+			sliderContainer.append("<span class='viewer-text viewer-slide-right'>" + defaults.max + "</span>");
 			sliderContainer.append("<br>");
 			
 			sliderEntry.append(valueNode);
@@ -189,7 +189,7 @@ define(["jquery", "jquery-ui"], function($) {
 			}
 			
 			var inputEntry = $("<div class='entry'></div>");
-			var input = $(`<input type='text' value='${_config.defaultSurface}' autofocus></input>`);
+			var input = $("<input type='text' value='" + _config.defaultSurface + "' autofocus></input>");
 			input.uniqueId();
 			input.on("keypress", function(event) {
 				if (event.which == 13) {
